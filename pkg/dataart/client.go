@@ -1,36 +1,48 @@
 package dataart
 
 import (
-	"errors"
-	"time"
-
 	"github.com/dataart-ai/dataart-go/internal/http"
+	"github.com/dataart-ai/dataart-go/internal/task"
 )
 
+// Client is a DataArt HTTP API client.
 type Client struct {
 	Config ClientConfig
 	Tracker
 }
 
-func (c *Client) Close() error {
-	return nil
+// Close gracefully terminates the underlying tracker instance.
+func (c *Client) Close() {
+	c.Tracker.Close()
 }
 
-func DefaultClient(cfg ClientConfig) (*Client, error) {
-	if len(cfg.APIKey) == 0 {
-		return nil, errors.New("APIKey must not be empty")
+// NewClient initiates the a Client with given configuration values.
+func NewClient(cfg ClientConfig) (*Client, error) {
+	err := validateConfig(cfg)
+	if err != nil {
+		return nil, err
 	}
 
-	if cfg.FlushCap < 1 {
-		return nil, errors.New("FlushCap must be greater than zero")
+	if len(cfg.baseURL) == 0 {
+		cfg.baseURL = "http://sourcing.datartproject.com"
 	}
 
-	if cfg.FlushInterval < time.Duration(time.Second*5) {
-		return nil, errors.New("FlushInterval must be greater than 5 seconds")
+	tm, err := task.NewManager(cfg.FlushNumWorkers, cfg.FlushBufferSize,
+		cfg.FlushNumRetries, cfg.FlushBackoffRatio, nil, nil)
+
+	if err != nil {
+		return nil, err
+	}
+
+	up, err := http.NewUploader(cfg.baseURL, cfg.APIKey,
+		cfg.FlushActionsBatchSize, cfg.FlushInterval, cfg.HTTPClient, tm)
+
+	if err != nil {
+		return nil, err
 	}
 
 	trk := &trackerImpl{
-		uploader: http.NewUploader(cfg.APIKey, cfg.HTTPClient),
+		uploader: up,
 	}
 
 	c := &Client{
