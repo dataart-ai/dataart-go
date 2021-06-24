@@ -1,8 +1,10 @@
 package http
 
-import "time"
+import (
+	"time"
+)
 
-type Action struct {
+type ActionContainer struct {
 	Key             string                 `json:"key"`
 	UserKey         string                 `json:"user_key"`
 	IsAnonymousUser bool                   `json:"is_anonymous_user"`
@@ -11,8 +13,8 @@ type Action struct {
 }
 
 type ActionsContainer struct {
-	Timestamp time.Time `json:"timestamp"`
-	Actions   []Action  `json:"actions"`
+	Timestamp time.Time         `json:"timestamp"`
+	Actions   []ActionContainer `json:"actions"`
 }
 
 type IdentityContainer struct {

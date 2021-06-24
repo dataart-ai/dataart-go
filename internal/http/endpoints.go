@@ -1,7 +1,9 @@
 package http
 
-const (
-	baseURL       = "http://sourcing.datartproject.com"
-	actionsURL    = baseURL + "/events/send-actions"
-	identitiesURL = baseURL + "/users/identify"
-)
+func buildActionsURL(baseURL string) string {
+	return baseURL + "/events/send-actions"
+}
+
+func buildIdentitiesURL(baseURL string) string {
+	return baseURL + "/users/identify"
+}
