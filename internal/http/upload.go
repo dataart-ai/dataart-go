@@ -41,10 +41,10 @@ type uploaderImpl struct {
 
 	actionsBatch []ActionContainer
 
-	tasks         chan uploadTask
-	doneCh        chan struct{}
-	debugTickerCh chan bool
+	tasks  chan uploadTask
+	doneCh chan struct{}
 
+	wg         sync.WaitGroup
 	once       sync.Once
 	inShutdown atomicutil.Bool
 	isStarted  atomicutil.Bool
@@ -112,6 +112,7 @@ func (u *uploaderImpl) flushActions() {
 func (u *uploaderImpl) start() {
 	u.isStarted.SetTrue()
 
+	u.wg.Add(1)
 	go func() {
 		for {
 			t := time.NewTimer(u.uploadInterval)
@@ -129,9 +130,6 @@ func (u *uploaderImpl) start() {
 					u.flushIdentity(obj)
 				}
 			case <-t.C:
-				if u.debugTickerCh != nil {
-					u.debugTickerCh <- true
-				}
 				if len(u.actionsBatch) > 0 {
 					u.flushActions()
 				}
@@ -140,6 +138,8 @@ func (u *uploaderImpl) start() {
 				if len(u.actionsBatch) > 0 {
 					u.flushActions()
 				}
+				u.taskManager.Shutdown()
+				u.wg.Done()
 				return
 			}
 		}
@@ -185,7 +185,7 @@ func (u *uploaderImpl) Shutdown() {
 	u.inShutdown.SetTrue()
 
 	u.doneCh <- struct{}{}
-	u.taskManager.Shutdown()
+	u.wg.Wait()
 }
 
 func NewUploader(baseURL string, apiKey string, batchSize int, uploadInterval time.Duration,
@@ -225,7 +225,6 @@ func NewUploader(baseURL string, apiKey string, batchSize int, uploadInterval ti
 		actionsBatch:   make([]ActionContainer, 0),
 		tasks:          make(chan uploadTask),
 		doneCh:         make(chan struct{}),
-		debugTickerCh:  nil,
 	}
 
 	return u, nil
