@@ -9,6 +9,8 @@ import (
 )
 
 func TestNewManager(t *testing.T) {
+	t.Parallel()
+
 	// numWorkers value
 	_, err := NewManager(0, 1, 1, 1, nil, nil)
 	if err == nil {
@@ -35,6 +37,8 @@ func TestNewManager(t *testing.T) {
 }
 
 func TestManager_WithWorkersLessThanTasks(t *testing.T) {
+	t.Parallel()
+
 	numTasks := 5
 	doneTasks := 0
 	numWorkers := 2
@@ -61,6 +65,8 @@ func TestManager_WithWorkersLessThanTasks(t *testing.T) {
 }
 
 func TestManager_WithWorkersEqualToTasks(t *testing.T) {
+	t.Parallel()
+
 	numTasks := 5
 	doneTasks := 0
 	numWorkers := 5
@@ -87,6 +93,8 @@ func TestManager_WithWorkersEqualToTasks(t *testing.T) {
 }
 
 func TestManager_WithWorkersMoreThanTasks(t *testing.T) {
+	t.Parallel()
+
 	numTasks := 2
 	doneTasks := 0
 	numWorkers := 5
@@ -113,6 +121,8 @@ func TestManager_WithWorkersMoreThanTasks(t *testing.T) {
 }
 
 func TestManager_WithFailingTask(t *testing.T) {
+	t.Parallel()
+
 	numTasks := 3
 	numTries := 0
 	numWorkers := 2
@@ -144,6 +154,8 @@ func TestManager_WithFailingTask(t *testing.T) {
 }
 
 func TestManager_WithQueueAfterShutdown(t *testing.T) {
+	t.Parallel()
+
 	tm, _ := NewManager(1, 1, 1, 1, nil, nil)
 
 	tm.Queue(NewTask(func() error {
