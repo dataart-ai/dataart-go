@@ -185,6 +185,12 @@ PASS
 - go version go1.16.3 darwin/amd64
 - MacOS 10.15.7
 
+**Client Configuration:**
+
+| FlushBufferSize | FlushNumWorkers | FlushNumRetries | FlushBackoffRatio | FlushActionsBatchSize | FlushInterval |
+| --------------- | --------------- | --------------- | ----------------- | --------------------- | ------------- |
+| 100             | 16              | 3               | 5                 | 20                    | 5s            |
+
 ## License
 
 MIT License
