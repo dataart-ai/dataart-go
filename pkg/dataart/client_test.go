@@ -7,6 +7,8 @@ import (
 )
 
 func TestNewClient(t *testing.T) {
+	t.Parallel()
+
 	var err error
 	var cfg ClientConfig
 
@@ -140,6 +142,8 @@ func TestNewClient(t *testing.T) {
 }
 
 func TestClient_WithEmitActionAndInvalidData(t *testing.T) {
+	t.Parallel()
+
 	cfg := ClientConfig{
 		APIKey:                "api-key",
 		FlushBufferSize:       1,
@@ -159,6 +163,8 @@ func TestClient_WithEmitActionAndInvalidData(t *testing.T) {
 }
 
 func TestClient_WithIdentifyAndInvalidData(t *testing.T) {
+	t.Parallel()
+
 	cfg := ClientConfig{
 		APIKey:                "api-key",
 		FlushBufferSize:       1,

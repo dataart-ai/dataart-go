@@ -45,6 +45,8 @@ func (t *testAcceptingIdentitiesHandler) ServeHTTP(w gohttp.ResponseWriter, r *g
 }
 
 func TestClient_WithActionsRequest(t *testing.T) {
+	t.Parallel()
+
 	errCh := make(chan error)
 	var actionsErr error = nil
 
@@ -88,6 +90,8 @@ func TestClient_WithActionsRequest(t *testing.T) {
 }
 
 func TestClient_WithIdentityRequest(t *testing.T) {
+	t.Parallel()
+
 	errCh := make(chan error)
 	var identitiesErr error = nil
 
