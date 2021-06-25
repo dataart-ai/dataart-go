@@ -48,7 +48,7 @@ func (tm *managerImpl) start() {
 					if err != nil {
 						// Job failed. Worker will sleep for (backoffRatio*r) seconds and retry.
 						if failHook != nil {
-							failHook(t.uid.String(), workerID, err)
+							failHook(t.id, workerID, err)
 						}
 
 						// We add 1 to r since it starts with 0.
@@ -56,7 +56,7 @@ func (tm *managerImpl) start() {
 						time.Sleep(time.Duration(backoff) * time.Second)
 					} else if err == nil {
 						if doneHook != nil {
-							doneHook(t.uid.String(), workerID)
+							doneHook(t.id, workerID)
 						}
 
 						break
