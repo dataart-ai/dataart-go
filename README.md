@@ -124,7 +124,7 @@ func main() {
 }
 ```
 
-## Integration Testing
+## Mocking Client for Tests
 
 You can easily mock `dataart.Client` behaviour by providing a mock `dataart.Tracker` instance to it.
 
