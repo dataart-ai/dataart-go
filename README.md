@@ -1,5 +1,9 @@
 # DataArt Go Client
 
+![Test Status](https://github.com/dataart-ai/dataart-go/actions/workflows/test.yml/badge.svg?branch=master)
+[![Go Reference](https://pkg.go.dev/badge/github.com/dataart-ai/dataart-go.svg)](https://pkg.go.dev/github.com/dataart-ai/dataart-go)
+[![GoReportCard](https://goreportcard.com/badge/github.com/dataart-ai/dataart-go)](https://goreportcard.com/badge/github.com/dataart-ai/dataart-go)
+
 DataArt platform client for Golang.
 
 <p>
@@ -11,6 +15,8 @@ DataArt platform client for Golang.
 ```bash
   $ go get -u github.com/dataart-ai/dataart-go
 ```
+
+**Go version `1.11` or above is required for this library.**
 
 ## Usage
 
