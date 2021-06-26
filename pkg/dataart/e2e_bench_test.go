@@ -35,10 +35,7 @@ func BenchmarkClient(b *testing.B) {
 		b.Errorf("creating client failed with error: %s", err.Error())
 		b.Fail()
 	}
-
-	b.Cleanup(func() {
-		c.Close()
-	})
+	defer c.Close()
 
 	b.ResetTimer()
 	b.RunParallel(func(p *testing.PB) {
