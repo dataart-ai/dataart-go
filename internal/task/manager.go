@@ -9,12 +9,9 @@ import (
 	"github.com/dataart-ai/dataart-go/internal/pkg/atomicutil"
 )
 
-type Manager interface {
-	Queue(t Task) error
-	Shutdown()
-}
-
-type managerImpl struct {
+// Manager receives task functions and distributes them among worker goroutines.
+// If any given function returns an error it will be retried when numRetries > 0.
+type Manager struct {
 	numWorkers   int
 	bufferSize   int
 	numRetries   int
@@ -23,7 +20,7 @@ type managerImpl struct {
 	doneHook func(taskUID string, workerID string)
 	failHook func(taskUID string, workerID string, err error)
 
-	buffer chan Task
+	buffer chan task
 
 	once       sync.Once
 	wg         sync.WaitGroup
@@ -31,11 +28,11 @@ type managerImpl struct {
 	isStarted  atomicutil.Bool
 }
 
-func (tm *managerImpl) start() {
-	tm.isStarted.SetTrue()
+func (m *Manager) start() {
+	m.isStarted.SetTrue()
 
-	for i := 0; i < tm.numWorkers; i++ {
-		go func(wid, numRetries, backoffRatio int, wg *sync.WaitGroup, buffer <-chan Task,
+	for i := 0; i < m.numWorkers; i++ {
+		go func(wid, numRetries, backoffRatio int, wg *sync.WaitGroup, buffer <-chan task,
 			doneHook func(taskUID string, workerID string),
 			failHook func(taskUID string, workerID string, err error)) {
 
@@ -44,7 +41,7 @@ func (tm *managerImpl) start() {
 			for t := range buffer {
 				// We add 1 to numRetries for the first run.
 				for r := 0; r < numRetries+1; r++ {
-					err := t.Work()
+					err := t.work()
 					if err != nil {
 						// Job failed. Worker will sleep for (backoffRatio*r) seconds and retry.
 						if failHook != nil {
@@ -65,35 +62,42 @@ func (tm *managerImpl) start() {
 
 				wg.Done()
 			}
-		}(i, tm.numRetries, tm.backoffRatio, &tm.wg, tm.buffer, tm.doneHook, tm.failHook)
+		}(i, m.numRetries, m.backoffRatio, &m.wg, m.buffer, m.doneHook, m.failHook)
 	}
 }
 
-func (tm *managerImpl) Queue(t Task) error {
-	if tm.inShutdown.IsSet() {
+// Queue enqueues given function to be executed. If given returns an error
+// it will be retried numRetries times until giving up. Queue returns an error
+// if the manager instance is shutting down.
+func (m *Manager) Queue(work func() error) error {
+	if m.inShutdown.IsSet() {
 		return errors.New("manager is shutting down")
 	}
 
-	tm.once.Do(tm.start)
+	m.once.Do(m.start)
 
-	tm.wg.Add(1)
-	tm.buffer <- t
+	m.wg.Add(1)
+	m.buffer <- newTask(work)
 	return nil
 }
 
-func (tm *managerImpl) Shutdown() {
-	if tm.inShutdown.IsSet() || !tm.isStarted.IsSet() {
+// Shutdown terminates Manager gracefully. It waits for all workers to return
+// then closes the buffer channel and returns.
+func (m *Manager) Shutdown() {
+	if m.inShutdown.IsSet() || !m.isStarted.IsSet() {
 		return
 	}
-	tm.inShutdown.SetTrue()
+	m.inShutdown.SetTrue()
 
-	tm.wg.Wait()
-	close(tm.buffer)
+	m.wg.Wait()
+	close(m.buffer)
 }
 
+// NewManager creates a new Manager instance using provided values. Use this
+// function to instantiate a concrete Manager type.
 func NewManager(numWorkers, bufferSize, numRetries, backoffRatio int,
 	doneHook func(taskUID, workerID string),
-	failHook func(taskUID, workerID string, err error)) (Manager, error) {
+	failHook func(taskUID, workerID string, err error)) (*Manager, error) {
 
 	if numWorkers < 1 {
 		return nil, errors.New("numWorkers must be at least 1")
@@ -111,14 +115,14 @@ func NewManager(numWorkers, bufferSize, numRetries, backoffRatio int,
 		return nil, errors.New("backoffRatio must be at least 1")
 	}
 
-	tm := &managerImpl{
+	tm := &Manager{
 		numWorkers:   numWorkers,
 		bufferSize:   bufferSize,
 		numRetries:   numRetries,
 		backoffRatio: backoffRatio,
 		doneHook:     doneHook,
 		failHook:     failHook,
-		buffer:       make(chan Task, bufferSize),
+		buffer:       make(chan task, bufferSize),
 	}
 
 	return tm, nil
