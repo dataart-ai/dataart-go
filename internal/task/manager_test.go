@@ -11,27 +11,27 @@ import (
 func TestNewManager(t *testing.T) {
 	t.Parallel()
 
-	// numWorkers value
 	_, err := NewManager(0, 1, 1, 1, nil, nil)
 	if err == nil {
+		t.Error("given numWorkers is invalid")
 		t.Fail()
 	}
 
-	// bufferSize value
 	_, err = NewManager(1, 0, 1, 1, nil, nil)
 	if err == nil {
+		t.Error("given bufferSize is invalid")
 		t.Fail()
 	}
 
-	// numRetries value
 	_, err = NewManager(1, 1, -1, 1, nil, nil)
 	if err == nil {
+		t.Error("given numRetries is invalid")
 		t.Fail()
 	}
 
-	// backoffRatio value
 	_, err = NewManager(1, 1, 1, 0, nil, nil)
 	if err == nil {
+		t.Error("given backoffRatio is invalid")
 		t.Fail()
 	}
 }
@@ -51,11 +51,10 @@ func TestManager_WithWorkersLessThanTasks(t *testing.T) {
 	tm, _ := NewManager(numWorkers, 1, 1, 1, doneHook, nil)
 
 	for i := 0; i < numTasks; i++ {
-		t := NewTask(func() error {
-			time.Sleep(time.Duration(rand.Int31n(100)) * time.Millisecond)
+		tm.Queue(func() error {
+			time.Sleep(time.Duration(rand.Int31n(50)) * time.Millisecond)
 			return nil
 		})
-		tm.Queue(t)
 	}
 
 	tm.Shutdown()
@@ -79,11 +78,10 @@ func TestManager_WithWorkersEqualToTasks(t *testing.T) {
 	tm, _ := NewManager(numWorkers, 1, 1, 1, doneHook, nil)
 
 	for i := 0; i < numTasks; i++ {
-		t := NewTask(func() error {
-			time.Sleep(time.Duration(rand.Int31n(100)) * time.Millisecond)
+		tm.Queue(func() error {
+			time.Sleep(time.Duration(rand.Int31n(50)) * time.Millisecond)
 			return nil
 		})
-		tm.Queue(t)
 	}
 
 	tm.Shutdown()
@@ -107,11 +105,10 @@ func TestManager_WithWorkersMoreThanTasks(t *testing.T) {
 	tm, _ := NewManager(numWorkers, 1, 1, 1, doneHook, nil)
 
 	for i := 0; i < numTasks; i++ {
-		t := NewTask(func() error {
-			time.Sleep(time.Duration(rand.Int31n(100)) * time.Millisecond)
+		tm.Queue(func() error {
+			time.Sleep(time.Duration(rand.Int31n(50)) * time.Millisecond)
 			return nil
 		})
-		tm.Queue(t)
 	}
 
 	tm.Shutdown()
@@ -120,7 +117,7 @@ func TestManager_WithWorkersMoreThanTasks(t *testing.T) {
 	}
 }
 
-func TestManager_WithFailingTask(t *testing.T) {
+func TestManager_WithFailingTaskShouldRetryEnoughTimes(t *testing.T) {
 	t.Parallel()
 
 	numTasks := 3
@@ -136,11 +133,10 @@ func TestManager_WithFailingTask(t *testing.T) {
 	tm, _ := NewManager(numWorkers, 1, numRetries, 1, nil, failHook)
 
 	for i := 0; i < numTasks; i++ {
-		t := NewTask(func() error {
+		tm.Queue(func() error {
 			time.Sleep(time.Duration(rand.Int31n(10)) * time.Millisecond)
 			return errors.New("tasks failed for some reason")
 		})
-		tm.Queue(t)
 	}
 
 	tm.Shutdown()
@@ -158,19 +154,20 @@ func TestManager_WithQueueAfterShutdown(t *testing.T) {
 
 	tm, _ := NewManager(1, 1, 1, 1, nil, nil)
 
-	tm.Queue(NewTask(func() error {
+	tm.Queue(func() error {
 		return nil
-	}))
+	})
 
 	// Multiple shutdowns should be idempotent.
 	tm.Shutdown()
 	tm.Shutdown()
 
-	err := tm.Queue(NewTask(func() error {
+	err := tm.Queue(func() error {
 		return nil
-	}))
+	})
 
 	if err == nil {
+		t.Error("queue after shutdown should have returned an error")
 		t.Fail()
 	}
 }

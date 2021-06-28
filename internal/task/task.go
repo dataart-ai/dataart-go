@@ -8,14 +8,14 @@ const (
 	taskIDLength = 16
 )
 
-type Task struct {
+type task struct {
 	id   string
-	Work func() error
+	work func() error
 }
 
-func NewTask(function func() error) Task {
-	return Task{
+func newTask(work func() error) task {
+	return task{
 		id:   randomutil.String(taskIDLength),
-		Work: function,
+		work: work,
 	}
 }
