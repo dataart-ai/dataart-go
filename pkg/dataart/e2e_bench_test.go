@@ -7,15 +7,15 @@ import (
 	"time"
 )
 
-type testAcceptingBenchHandler struct{}
+type mockAcceptingBenchHandler struct{}
 
-func (t *testAcceptingBenchHandler) ServeHTTP(w gohttp.ResponseWriter, r *gohttp.Request) {
+func (m *mockAcceptingBenchHandler) ServeHTTP(w gohttp.ResponseWriter, r *gohttp.Request) {
 	w.WriteHeader(gohttp.StatusOK)
 	w.Write(nil)
 }
 
 func BenchmarkClient(b *testing.B) {
-	s := httptest.NewServer(&testAcceptingBenchHandler{})
+	s := httptest.NewServer(&mockAcceptingBenchHandler{})
 	defer s.Close()
 
 	cfg := ClientConfig{

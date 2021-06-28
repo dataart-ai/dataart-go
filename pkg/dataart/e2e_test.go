@@ -10,16 +10,16 @@ import (
 	"github.com/dataart-ai/dataart-go/internal/http"
 )
 
-type testAcceptingActionsHandler struct {
+type mockAcceptingActionsHandler struct {
 	errCh chan error
 }
 
-func (t *testAcceptingActionsHandler) ServeHTTP(w gohttp.ResponseWriter, r *gohttp.Request) {
+func (m *mockAcceptingActionsHandler) ServeHTTP(w gohttp.ResponseWriter, r *gohttp.Request) {
 	a := http.ActionsContainer{}
 	dec := json.NewDecoder(r.Body)
 	err := dec.Decode(&a)
 	if err != nil {
-		t.errCh <- err
+		m.errCh <- err
 		return
 	}
 
@@ -50,7 +50,7 @@ func TestClient_WithActionsRequest(t *testing.T) {
 	errCh := make(chan error)
 	var actionsErr error = nil
 
-	s := httptest.NewServer(&testAcceptingActionsHandler{errCh})
+	s := httptest.NewServer(&mockAcceptingActionsHandler{errCh})
 	defer s.Close()
 
 	cfg := ClientConfig{

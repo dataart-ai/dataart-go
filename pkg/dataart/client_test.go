@@ -22,9 +22,9 @@ func TestNewClient(t *testing.T) {
 		FlushInterval:         time.Duration(5 * time.Second),
 		HTTPClient:            gohttp.DefaultClient,
 	}
-	// APIKey
 	_, err = NewClient(cfg)
 	if err == nil {
+		t.Error("given APIKey is invalid")
 		t.Fail()
 	}
 
@@ -38,9 +38,9 @@ func TestNewClient(t *testing.T) {
 		FlushInterval:         time.Duration(5 * time.Second),
 		HTTPClient:            gohttp.DefaultClient,
 	}
-	// FlushBufferSize
 	_, err = NewClient(cfg)
 	if err == nil {
+		t.Error("given FlushBufferSize is invalid")
 		t.Fail()
 	}
 
@@ -54,9 +54,9 @@ func TestNewClient(t *testing.T) {
 		FlushInterval:         time.Duration(5 * time.Second),
 		HTTPClient:            gohttp.DefaultClient,
 	}
-	// FlushNumWorkers
 	_, err = NewClient(cfg)
 	if err == nil {
+		t.Error("given FlushNumWorkers is invalid")
 		t.Fail()
 	}
 
@@ -70,9 +70,9 @@ func TestNewClient(t *testing.T) {
 		FlushInterval:         time.Duration(5 * time.Second),
 		HTTPClient:            gohttp.DefaultClient,
 	}
-	// FlushNumRetries
 	_, err = NewClient(cfg)
 	if err == nil {
+		t.Error("given FlushNumRetries is invalid")
 		t.Fail()
 	}
 
@@ -86,9 +86,9 @@ func TestNewClient(t *testing.T) {
 		FlushInterval:         time.Duration(5 * time.Second),
 		HTTPClient:            gohttp.DefaultClient,
 	}
-	// FlushBackoffRatio
 	_, err = NewClient(cfg)
 	if err == nil {
+		t.Error("given FlushBackoffRatio is invalid")
 		t.Fail()
 	}
 
@@ -102,9 +102,9 @@ func TestNewClient(t *testing.T) {
 		FlushInterval:         time.Duration(5 * time.Second),
 		HTTPClient:            gohttp.DefaultClient,
 	}
-	// FlushActionsBatchSize
 	_, err = NewClient(cfg)
 	if err == nil {
+		t.Error("given FlushActionsBatchSize is invalid")
 		t.Fail()
 	}
 
@@ -118,9 +118,9 @@ func TestNewClient(t *testing.T) {
 		FlushInterval:         time.Duration(4 * time.Second),
 		HTTPClient:            gohttp.DefaultClient,
 	}
-	// FlushInterval
 	_, err = NewClient(cfg)
 	if err == nil {
+		t.Error("given FlushInterval is invalid")
 		t.Fail()
 	}
 
@@ -134,9 +134,9 @@ func TestNewClient(t *testing.T) {
 		FlushInterval:         time.Duration(5 * time.Second),
 		HTTPClient:            nil,
 	}
-	// HTTPClient
 	_, err = NewClient(cfg)
 	if err == nil {
+		t.Error("given HTTPClient is invalid")
 		t.Fail()
 	}
 }
@@ -158,6 +158,7 @@ func TestClient_WithEmitActionAndInvalidData(t *testing.T) {
 	c, _ := NewClient(cfg)
 	err := c.EmitAction("", "", true, time.Now(), nil)
 	if err == nil {
+		t.Error("given eventKey is invalid")
 		t.Fail()
 	}
 }
@@ -179,6 +180,7 @@ func TestClient_WithIdentifyAndInvalidData(t *testing.T) {
 	c, _ := NewClient(cfg)
 	err := c.Identify("", nil)
 	if err == nil {
+		t.Error("given user key is invalid")
 		t.Fail()
 	}
 }
