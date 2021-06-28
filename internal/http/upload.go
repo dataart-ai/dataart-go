@@ -7,21 +7,22 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
 
 	"github.com/dataart-ai/dataart-go/internal/pkg/atomicutil"
-	"github.com/dataart-ai/dataart-go/internal/task"
 )
 
 const (
 	objTypeAction   = "action"
 	objTypeIdentity = "identity"
+
+	minUploadInterval = time.Duration(5 * time.Second)
 )
 
-type Uploader interface {
-	UploadAction(cnt ActionContainer) error
-	UploadIdentity(cnt IdentityContainer) error
+type TaskManager interface {
+	Queue(work func() error) error
 	Shutdown()
 }
 
@@ -30,19 +31,21 @@ type uploadTask struct {
 	obj     interface{}
 }
 
-type uploaderImpl struct {
+// Uploader receives data objects and batches them if necessary in a request. These
+// requests are then executed using a task manager.
+type Uploader struct {
 	baseURL        string
 	apiKey         string
 	batchSize      int
 	uploadInterval time.Duration
 	httpClient     *http.Client
 
-	taskManager task.Manager
+	tasks  chan uploadTask
+	doneCh chan struct{}
 
 	actionsBatch []ActionContainer
 
-	tasks  chan uploadTask
-	doneCh chan struct{}
+	tm TaskManager
 
 	wg         sync.WaitGroup
 	once       sync.Once
@@ -50,7 +53,7 @@ type uploaderImpl struct {
 	isStarted  atomicutil.Bool
 }
 
-func (u *uploaderImpl) buildRequest(url string, b []byte) func() error {
+func (u *Uploader) buildRequest(url string, b []byte) func() error {
 	return func() error {
 		req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
 		if err != nil {
@@ -83,15 +86,18 @@ func (u *uploaderImpl) buildRequest(url string, b []byte) func() error {
 	}
 }
 
-func (u *uploaderImpl) flushIdentity(cnt IdentityContainer) {
+func (u *Uploader) flushIdentity(cnt IdentityContainer) {
 	b, _ := json.Marshal(cnt)
 
-	u.taskManager.Queue(
-		task.NewTask(u.buildRequest(buildIdentitiesURL(u.baseURL), b)),
+	// Error checking is skipped since we validate baseURL in initialization.
+	iurl, _ := buildIdentitiesURL(u.baseURL)
+
+	u.tm.Queue(
+		u.buildRequest(iurl, b),
 	)
 }
 
-func (u *uploaderImpl) flushActions() {
+func (u *Uploader) flushActions() {
 	dup := make([]ActionContainer, len(u.actionsBatch))
 	copy(dup, u.actionsBatch)
 
@@ -102,14 +108,17 @@ func (u *uploaderImpl) flushActions() {
 
 	b, _ := json.Marshal(cnt)
 
-	u.taskManager.Queue(
-		task.NewTask(u.buildRequest(buildActionsURL(u.baseURL), b)),
+	// Error checking is skipped since we validate baseURL in initialization.
+	aurl, _ := buildActionsURL(u.baseURL)
+
+	u.tm.Queue(
+		u.buildRequest(aurl, b),
 	)
 
 	u.actionsBatch = make([]ActionContainer, 0)
 }
 
-func (u *uploaderImpl) start() {
+func (u *Uploader) start() {
 	u.isStarted.SetTrue()
 
 	u.wg.Add(1)
@@ -138,7 +147,7 @@ func (u *uploaderImpl) start() {
 				if len(u.actionsBatch) > 0 {
 					u.flushActions()
 				}
-				u.taskManager.Shutdown()
+				u.tm.Shutdown()
 				u.wg.Done()
 				return
 			}
@@ -146,7 +155,8 @@ func (u *uploaderImpl) start() {
 	}()
 }
 
-func (u *uploaderImpl) UploadAction(cnt ActionContainer) error {
+// UploadAction queues given action object to be uploaded to server.
+func (u *Uploader) UploadAction(cnt ActionContainer) error {
 	if u.inShutdown.IsSet() {
 		return errors.New("uploader is shutting down")
 	}
@@ -162,7 +172,8 @@ func (u *uploaderImpl) UploadAction(cnt ActionContainer) error {
 	return nil
 }
 
-func (u *uploaderImpl) UploadIdentity(cnt IdentityContainer) error {
+// UploadIdentity queues given identity object to be uploaded to server.
+func (u *Uploader) UploadIdentity(cnt IdentityContainer) error {
 	if u.inShutdown.IsSet() {
 		return errors.New("uploader is shutting down")
 	}
@@ -178,7 +189,9 @@ func (u *uploaderImpl) UploadIdentity(cnt IdentityContainer) error {
 	return nil
 }
 
-func (u *uploaderImpl) Shutdown() {
+// Shutdown terminates Uploader gracefully. It will flush all requests before
+// closing the buffer and then returns.
+func (u *Uploader) Shutdown() {
 	if u.inShutdown.IsSet() || !u.isStarted.IsSet() {
 		return
 	}
@@ -188,11 +201,14 @@ func (u *uploaderImpl) Shutdown() {
 	u.wg.Wait()
 }
 
+// NewUploader creates a new Uploader instance using provided values. Use this
+// function to instantiate a concrete Uploader type.
 func NewUploader(baseURL string, apiKey string, batchSize int, uploadInterval time.Duration,
-	httpClient *http.Client, taskManager task.Manager) (Uploader, error) {
+	httpClient *http.Client, tm TaskManager) (*Uploader, error) {
 
-	if len(baseURL) == 0 {
-		return nil, errors.New("baseURL must not be empty")
+	_, err := url.Parse(baseURL)
+	if len(baseURL) == 0 || err != nil {
+		return nil, errors.New("baseURL is not valid")
 	}
 
 	if len(apiKey) == 0 {
@@ -203,25 +219,25 @@ func NewUploader(baseURL string, apiKey string, batchSize int, uploadInterval ti
 		return nil, errors.New("batchSize must be at least 1")
 	}
 
-	if uploadInterval < time.Duration(1*time.Second) {
-		return nil, errors.New("uploadInterval can't be less 1 second")
+	if uploadInterval < time.Duration(minUploadInterval) {
+		return nil, errors.New("uploadInterval can't be less than 5 seconds")
 	}
 
 	if httpClient == nil {
 		return nil, errors.New("httpClient can't be nil")
 	}
 
-	if taskManager == nil {
+	if tm == nil {
 		return nil, errors.New("taskManager can't be nil")
 	}
 
-	u := &uploaderImpl{
+	u := &Uploader{
 		baseURL:        baseURL,
 		apiKey:         apiKey,
 		batchSize:      batchSize,
 		uploadInterval: uploadInterval,
 		httpClient:     httpClient,
-		taskManager:    taskManager,
+		tm:             tm,
 		actionsBatch:   make([]ActionContainer, 0),
 		tasks:          make(chan uploadTask),
 		doneCh:         make(chan struct{}),

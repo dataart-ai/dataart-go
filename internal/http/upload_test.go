@@ -5,74 +5,73 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/dataart-ai/dataart-go/internal/task"
 )
 
-type testAcceptingHandler struct {
+type mockAcceptingHandler struct {
 	feedbackCh chan bool
 }
 
-func (t *testAcceptingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if t.feedbackCh != nil {
-		t.feedbackCh <- true
+func (m *mockAcceptingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if m.feedbackCh != nil {
+		m.feedbackCh <- true
 	}
 
 	w.WriteHeader(http.StatusOK)
 	w.Write(nil)
 }
 
-type testRejectingHandler struct{}
+type mockRejectingHandler struct{}
 
-func (t *testRejectingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (m *mockRejectingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusBadRequest)
 	w.Write(nil)
 }
 
-type testWorkingTaskManager struct{}
+type mockWorkingTaskManager struct{}
 
-func (tm *testWorkingTaskManager) Queue(t task.Task) error {
-	t.Work()
+func (m *mockWorkingTaskManager) Queue(work func() error) error {
+	work()
 	return nil
 }
 
-func (tm *testWorkingTaskManager) Shutdown() {}
+func (m *mockWorkingTaskManager) Shutdown() {}
 
 func TestNewUploader(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewUploader("", "api-key", 1, time.Duration(1*time.Second), http.DefaultClient, &testWorkingTaskManager{})
+	_, err := NewUploader("", "api-key", 1, time.Duration(5*time.Second), http.DefaultClient, &mockWorkingTaskManager{})
 	if err == nil {
+		t.Error("given baseURL is invalid")
 		t.Fail()
 	}
 
-	_, err = NewUploader("localhost:9090", "", 1, time.Duration(1*time.Second), http.DefaultClient, &testWorkingTaskManager{})
+	_, err = NewUploader("localhost:9090", "", 1, time.Duration(5*time.Second), http.DefaultClient, &mockWorkingTaskManager{})
 	if err == nil {
+		t.Error("given apiKey is invalid")
 		t.Fail()
 	}
 
-	_, err = NewUploader("localhost:9090", "api-key", 0, time.Duration(1*time.Second), http.DefaultClient, &testWorkingTaskManager{})
+	_, err = NewUploader("https://something.com", "api-key", 0, time.Duration(5*time.Second), http.DefaultClient, &mockWorkingTaskManager{})
 	if err == nil {
+		t.Error("given batchSize is invalid")
 		t.Fail()
 	}
 
-	_, err = NewUploader("localhost:9090", "api-key", 1, time.Duration(500*time.Millisecond), http.DefaultClient, &testWorkingTaskManager{})
+	_, err = NewUploader("localhost:9090", "api-key", 1, time.Duration(1*time.Second), http.DefaultClient, &mockWorkingTaskManager{})
 	if err == nil {
+		t.Error("given uploadInterval is invalid")
 		t.Fail()
 	}
 
-	_, err = NewUploader("localhost:9090", "api-key", 1, time.Duration(1*time.Second), nil, &testWorkingTaskManager{})
+	_, err = NewUploader("localhost:9090", "api-key", 1, time.Duration(5*time.Second), nil, &mockWorkingTaskManager{})
 	if err == nil {
+		t.Error("given httpClient is invalid")
 		t.Fail()
 	}
 
-	_, err = NewUploader("localhost:9090", "api-key", 1, time.Duration(1*time.Second), http.DefaultClient, nil)
+	_, err = NewUploader("localhost:9090", "api-key", 1, time.Duration(5*time.Second), http.DefaultClient, nil)
 	if err == nil {
-		t.Fail()
-	}
-
-	_, err = NewUploader("localhost:9090", "api-key", 1, time.Duration(1*time.Second), http.DefaultClient, &testWorkingTaskManager{})
-	if err != nil {
+		t.Error("given TaskManager is invalid")
 		t.Fail()
 	}
 }
@@ -80,20 +79,16 @@ func TestNewUploader(t *testing.T) {
 func TestUploader_WithAcceptingHandlerAndUploadActions(t *testing.T) {
 	t.Parallel()
 
-	s := httptest.NewServer(&testAcceptingHandler{nil})
+	s := httptest.NewServer(&mockAcceptingHandler{nil})
 	defer s.Close()
 
-	u := &uploaderImpl{
-		baseURL:        s.URL,
-		apiKey:         "some-api-key",
-		batchSize:      1,
-		uploadInterval: time.Duration(1 * time.Second),
-		httpClient:     http.DefaultClient,
-		taskManager:    &testWorkingTaskManager{},
-		actionsBatch:   make([]ActionContainer, 0),
-		tasks:          make(chan uploadTask),
-		doneCh:         make(chan struct{}),
-	}
+	u, _ := NewUploader(
+		s.URL,
+		"some-api-key",
+		1,
+		time.Duration(5*time.Second),
+		http.DefaultClient,
+		&mockWorkingTaskManager{})
 
 	u.UploadAction(ActionContainer{
 		Key:             "some-event-key",
@@ -113,20 +108,16 @@ func TestUploader_WithAcceptingHandlerAndUploadActions(t *testing.T) {
 func TestUploader_WithRejectingHandlerAndUploadActions(t *testing.T) {
 	t.Parallel()
 
-	s := httptest.NewServer(&testRejectingHandler{})
+	s := httptest.NewServer(&mockRejectingHandler{})
 	defer s.Close()
 
-	u := &uploaderImpl{
-		baseURL:        s.URL,
-		apiKey:         "some-api-key",
-		batchSize:      1,
-		uploadInterval: time.Duration(1 * time.Second),
-		httpClient:     http.DefaultClient,
-		taskManager:    &testWorkingTaskManager{},
-		actionsBatch:   make([]ActionContainer, 0),
-		tasks:          make(chan uploadTask),
-		doneCh:         make(chan struct{}),
-	}
+	u, _ := NewUploader(
+		s.URL,
+		"some-api-key",
+		1,
+		time.Duration(5*time.Second),
+		http.DefaultClient,
+		&mockWorkingTaskManager{})
 
 	u.UploadAction(ActionContainer{
 		Key:             "some-event-key",
@@ -146,20 +137,16 @@ func TestUploader_WithRejectingHandlerAndUploadActions(t *testing.T) {
 func TestUploader_WithAcceptingHandlerAndUploadIdentity(t *testing.T) {
 	t.Parallel()
 
-	s := httptest.NewServer(&testAcceptingHandler{nil})
+	s := httptest.NewServer(&mockAcceptingHandler{nil})
 	defer s.Close()
 
-	u := &uploaderImpl{
-		baseURL:        s.URL,
-		apiKey:         "some-api-key",
-		batchSize:      1,
-		uploadInterval: time.Duration(1 * time.Second),
-		httpClient:     http.DefaultClient,
-		taskManager:    &testWorkingTaskManager{},
-		actionsBatch:   make([]ActionContainer, 0),
-		tasks:          make(chan uploadTask),
-		doneCh:         make(chan struct{}),
-	}
+	u, _ := NewUploader(
+		s.URL,
+		"some-api-key",
+		1,
+		time.Duration(5*time.Second),
+		http.DefaultClient,
+		&mockWorkingTaskManager{})
 
 	u.UploadIdentity(IdentityContainer{
 		UserKey: "some-user-key",
@@ -175,20 +162,16 @@ func TestUploader_WithAcceptingHandlerAndUploadIdentity(t *testing.T) {
 func TestUploader_WithRejectingHandlerAndUploadIdentity(t *testing.T) {
 	t.Parallel()
 
-	s := httptest.NewServer(&testRejectingHandler{})
+	s := httptest.NewServer(&mockRejectingHandler{})
 	defer s.Close()
 
-	u := &uploaderImpl{
-		baseURL:        s.URL,
-		apiKey:         "some-api-key",
-		batchSize:      1,
-		uploadInterval: time.Duration(1 * time.Second),
-		httpClient:     http.DefaultClient,
-		taskManager:    &testWorkingTaskManager{},
-		actionsBatch:   make([]ActionContainer, 0),
-		tasks:          make(chan uploadTask),
-		doneCh:         make(chan struct{}),
-	}
+	u, _ := NewUploader(
+		s.URL,
+		"some-api-key",
+		1,
+		time.Duration(5*time.Second),
+		http.DefaultClient,
+		&mockWorkingTaskManager{})
 
 	u.UploadIdentity(IdentityContainer{
 		UserKey: "some-user-key",
@@ -207,20 +190,16 @@ func TestUploader_WithTimerFeedbackChannel(t *testing.T) {
 	feedbackCh := make(chan bool)
 	var reqReceivedByServer bool = false
 
-	s := httptest.NewServer(&testAcceptingHandler{feedbackCh})
+	s := httptest.NewServer(&mockAcceptingHandler{feedbackCh})
 	defer s.Close()
 
-	u := &uploaderImpl{
-		baseURL:        s.URL,
-		apiKey:         "some-api-key",
-		batchSize:      1,
-		uploadInterval: time.Duration(1 * time.Second),
-		httpClient:     http.DefaultClient,
-		taskManager:    &testWorkingTaskManager{},
-		actionsBatch:   make([]ActionContainer, 0),
-		tasks:          make(chan uploadTask),
-		doneCh:         make(chan struct{}),
-	}
+	u, _ := NewUploader(
+		s.URL,
+		"some-api-key",
+		1,
+		time.Duration(5*time.Second),
+		http.DefaultClient,
+		&mockWorkingTaskManager{})
 
 	go func() {
 		reqReceivedByServer = <-feedbackCh
@@ -245,20 +224,16 @@ func TestUploader_WithTimerFeedbackChannel(t *testing.T) {
 func TestUploader_WithShutdownUploader(t *testing.T) {
 	t.Parallel()
 
-	s := httptest.NewServer(&testAcceptingHandler{nil})
+	s := httptest.NewServer(&mockAcceptingHandler{nil})
 	defer s.Close()
 
-	u := &uploaderImpl{
-		baseURL:        s.URL,
-		apiKey:         "some-api-key",
-		batchSize:      1,
-		uploadInterval: time.Duration(1 * time.Second),
-		httpClient:     http.DefaultClient,
-		taskManager:    &testWorkingTaskManager{},
-		actionsBatch:   make([]ActionContainer, 0),
-		tasks:          make(chan uploadTask),
-		doneCh:         make(chan struct{}),
-	}
+	u, _ := NewUploader(
+		s.URL,
+		"some-api-key",
+		1,
+		time.Duration(5*time.Second),
+		http.DefaultClient,
+		&mockWorkingTaskManager{})
 
 	u.UploadIdentity(IdentityContainer{
 		UserKey: "some-user-key",
@@ -296,20 +271,16 @@ func TestUploader_WithPrematureShutdown(t *testing.T) {
 	feedbackCh := make(chan bool)
 	var reqReceivedByServer bool = false
 
-	s := httptest.NewServer(&testAcceptingHandler{feedbackCh})
+	s := httptest.NewServer(&mockAcceptingHandler{feedbackCh})
 	defer s.Close()
 
-	u := &uploaderImpl{
-		baseURL:        s.URL,
-		apiKey:         "some-api-key",
-		batchSize:      100,
-		uploadInterval: time.Duration(20 * time.Second),
-		httpClient:     http.DefaultClient,
-		taskManager:    &testWorkingTaskManager{},
-		actionsBatch:   make([]ActionContainer, 0),
-		tasks:          make(chan uploadTask),
-		doneCh:         make(chan struct{}),
-	}
+	u, _ := NewUploader(
+		s.URL,
+		"some-api-key",
+		100,
+		time.Duration(20*time.Second),
+		http.DefaultClient,
+		&mockWorkingTaskManager{})
 
 	go func() {
 		reqReceivedByServer = <-feedbackCh
