@@ -13,7 +13,7 @@ DataArt platform client for Golang.
 ## Getting Started
 
 ```bash
-  $ go get -u github.com/dataart-ai/dataart-go
+$ go get -u github.com/dataart-ai/dataart-go
 ```
 
 **Go version `1.11` or above is required for this library.**
@@ -126,40 +126,35 @@ func main() {
 
 ## Mocking Client for Tests
 
-You can easily mock `dataart.Client` behaviour by providing a mock `dataart.Tracker` instance to it.
+You can easily mock `dataart.Client` behaviour by cloning its interface.
 
 ```go
-package main
+type dataArtClient interface {
+	EmitAction(key string, userKey string, isAnonymousUser bool, timestamp time.Time, metadata map[string]interface{}) error
+	Identify(userKey string, metadata map[string]interface{}) error
+	Close()
+}
 
-import (
-	"time"
+func thisFunctionRequiresClient(c dataArtClient) {
+	// Do something with the client instance...
+}
 
-	"github.com/dataart-ai/dataart-go/pkg/dataart"
-)
+type mockDataArtClient struct{}
 
-type mockDataArtTracker struct{}
-
-func (m *mockDataArtTracker) EmitAction(key string, userKey string, isAnonymousUser bool,
+func (m *mockDataArtClient) EmitAction(key string, userKey string, isAnonymousUser bool,
 	timestamp time.Time, metadata map[string]interface{}) error {
 
 	return nil
 }
 
-func (m *mockDataArtTracker) Identify(userKey string, metadata map[string]interface{}) error {
+func (m *mockDataArtClient) Identify(userKey string, metadata map[string]interface{}) error {
 	return nil
 }
 
-func (m *mockDataArtTracker) Close() {}
+func (m *mockDataArtClient) Close() {}
 
-func thisFunctionRequiresClient(c *dataart.Client) {
-	// Do something with client instance...
-}
-
-func main() {
-	c := &dataart.Client{
-		Config:  dataart.ClientConfig{},
-		Tracker: &mockDataArtTracker{},
-	}
+func TestYourFunction() {
+	c := &mockDataArtClient{}
 
 	thisFunctionRequiresClient(c)
 }
