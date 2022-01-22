@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	sourcingURL = "https://sourcing.datartproject.com"
+	sourcingURL = "https://src.datartproject.com"
 )
 
 type httpUploader interface {
